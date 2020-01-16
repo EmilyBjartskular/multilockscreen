@@ -586,8 +586,8 @@ for arg in "$@"; do
 	case "$1" in
 		-u | --update)
 			runupdate=true
-			imagepath="$2"
-			shift 2
+                        [[ "$imagepath" ]] && ([[ "$2" ]] && imagepath="$2" || exit 0) || imagepath="$2"
+                        shift 2
 			;;
 
 		-l | --lock)
