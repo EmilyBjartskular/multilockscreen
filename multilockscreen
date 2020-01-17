@@ -45,6 +45,8 @@ init_config () {
 	# paths
 	CACHE_DIR="$HOME/.cache/multilock"
 	CUR_DIR="$CACHE_DIR/current"
+        DATA_DIR="$HOME/.local/share/multilock"
+        PROFILES_DIR="$DATA_DIR/Profiles"
 
 	# wallpaper
 	CUR_W_RESIZE="$CUR_DIR/wall_resize.png"
@@ -523,6 +525,108 @@ wallpaper() {
 	esac
 }
 
+get_active_profile() {
+  if [ -d "$CUR_DIR" -a -h "$CUR_DIR" ]; then
+    active_profile=$(readlink -e "$CUR_DIR" | grep -P -o -e "(?<=Profiles\/)(.*)(?=\/current)")
+  fi
+  active_profile=""
+}
+
+save_profile() {
+
+  local profile="$1"
+  local profile_dir="$PROFILES_DIR/$1"
+  local cp_dir="$CACHE_DIR"
+  
+  get_active_profile
+  
+  if [[ "$active_profile" ]]; then
+    if [[ "$active_profile" = "$profile" ]]; then
+      echo "An active profile can't be saved to itself."
+      exit 1
+    fi
+
+    echo "You are trying to duplicate the active profile, do you want to continue?"
+    select yn in "Yes" "No"; do
+      case $yn in
+        Yes ) break;;
+        No ) exit;;
+      esac
+    done
+
+    cp_dir="$PROFILES_DIR/$active_profile"
+  fi
+
+  if [ -d "$profile_dir" ]; then
+    echo "Profile already exists, do you wish to override it?"
+    select yn in "Yes" "No"; do
+      case $yn in
+        Yes ) purge_cache "$profile_dir"; break;;
+        No ) exit;;
+      esac
+    done
+  else
+    mkdir -p "$profile_dir"
+  fi
+
+  cp -r "$cp_dir/"* "$profile_dir"
+
+}
+
+load_profile() {
+  
+  local profile_dir="$PROFILES_DIR/$1"
+
+  if [ ! -d "$profile_dir" ]; then
+    echo "Profile doesn't exist."
+    exit 1
+  fi
+
+  purge_cache "$CACHE_DIR"
+  ln -s "$profile_dir/current" "$CACHE_DIR"
+
+}
+
+remove_profile() {
+  local profile="$1"
+  local profile_dir="$PROFILES_DIR/$1"
+
+  if [ ! -d "$profile_dir" ]; then
+    echo "Profile doesn't exist."
+    exit 1
+  fi
+
+  get_active_profile
+
+  if [[ "$profile" = "$active_profile" ]]; then
+    echo "Are you sure you want to remove the active profile? Images will be moved to cache"
+    select yn in "Yes" "No"; do
+      case $yn in
+        Yes ) mv -r "$profile_dir/"* "$CACHE_DIR"; break;;
+        No ) exit;;
+      esac
+    done
+  fi
+
+  rm -r "$profile_dir"
+
+}
+
+list_profiles() {
+  local profiles=$(ls "$PROFILES_DIR")
+
+  get_active_profile
+
+  for profile in "$profiles"; do
+    if [[ "$active_profile" && "$profile" = "$active_profile" ]]; then
+      echo "$profile (active)"
+    else
+      echo "$profile"
+    fi
+  done
+  
+}
+
 # help message
 usage() {
 	echo
@@ -537,6 +641,18 @@ usage() {
 	echo "  -w --wall <EFFECT>"
 	echo "      Set wallpaper with cached image"
 	echo
+        echo "  -o --save <PROFILE_NAME>"
+        echo "      Save profile. If -u is defined, saves profile after update"
+        echo
+        echo "  -i --load <PROFILE_NAME>"
+        echo "      Load profile"
+        echo
+        echo "  -r --remove <PROFILE_NAME>"
+        echo "      Remove profile"
+        echo
+        echo "  -p --profiles"
+        echo "      Print profiles"
+        echo
 	echo "Additional arguments:"
 	echo
 	echo "  --display <N>"
@@ -586,7 +702,7 @@ for arg in "$@"; do
 	case "$1" in
 		-u | --update)
 			runupdate=true
-                        [[ "$imagepath" ]] && ([[ "$2" ]] && imagepath="$2" || exit 0) || imagepath="$2"
+                        [[ "$imagepath" ]] && ([[ "$2" ]] && imagepath="$2" || true) || imagepath="$2"
                         shift 2
 			;;
 
@@ -604,6 +720,29 @@ for arg in "$@"; do
 			wallpaper "$2"
 			shift 2
 			;;
+
+                -o | --save)
+                        profile_action="s"
+                        profile="$2"
+                        shift 2
+                        ;;
+
+                -i | --load)
+                        profile_action="l"
+                        profile="$2"
+                        shift 2
+                        ;;
+
+                -r | --remove)
+                        profile_action="r"
+                        profile="$2"
+                        shift 2
+                        ;;
+
+                -p | --profiles)
+                        profile_action="p"
+                        shift 1
+                        ;;
 
 		--display)
 			display_on="$2"
@@ -632,7 +771,7 @@ for arg in "$@"; do
 
 		--dim)
 			dim_level="$2"
-			shift 2
+                        shift 2
 			;;
 
 		--blur)
@@ -673,5 +812,20 @@ done
 # Activate lockscreen
 [[ $runlock ]] && lockselect "$lockstyle" && \
 	{ [[ $runsuspend ]] && systemctl suspend; }
+
+case "$profile_action" in
+  s)
+    save_profile "$profile"
+    ;;
+  l)
+    load_profile "$profile"
+    ;;
+  r)
+    remove_profile "$profile"
+    ;;
+  p)
+    list_profiles
+    ;;
+esac
 
 exit 0
