@@ -528,8 +528,9 @@ wallpaper() {
 get_active_profile() {
   if [ -d "$CUR_DIR" -a -h "$CUR_DIR" ]; then
     active_profile=$(readlink -e "$CUR_DIR" | grep -P -o -e "(?<=Profiles\/)(.*)(?=\/current)")
+  else
+    active_profile=""
   fi
-  active_profile=""
 }
 
 save_profile() {
@@ -541,7 +542,7 @@ save_profile() {
   get_active_profile
   
   if [[ "$active_profile" ]]; then
-    if [[ "$active_profile" = "$profile" ]]; then
+    if [[ "$active_profile" == "$profile" ]]; then
       echo "An active profile can't be saved to itself."
       exit 1
     fi
@@ -598,7 +599,7 @@ remove_profile() {
 
   get_active_profile
 
-  if [[ "$profile" = "$active_profile" ]]; then
+  if [[ "$profile" == "$active_profile" ]]; then
     echo "Are you sure you want to remove the active profile? Images will be moved to cache"
     select yn in "Yes" "No"; do
       case $yn in
@@ -613,12 +614,11 @@ remove_profile() {
 }
 
 list_profiles() {
-  local profiles=$(ls "$PROFILES_DIR")
-
   get_active_profile
 
-  for profile in "$profiles"; do
-    if [[ "$active_profile" && "$profile" = "$active_profile" ]]; then
+  for dir in "$PROFILES_DIR/"*; do
+    local profile="$(basename "$dir")"
+    if [ -n "$active_profile" -a "$profile" = "$active_profile" ]; then
       echo "$profile (active)"
     else
       echo "$profile"
@@ -702,8 +702,7 @@ for arg in "$@"; do
 	case "$1" in
 		-u | --update)
 			runupdate=true
-                        [[ "$imagepath" ]] && ([[ "$2" ]] && imagepath="$2" || true) || imagepath="$2"
-                        shift 2
+                        [[ "$imagepath" ]] && shift 1 || { imagepath="$2"; shift 2; }
 			;;
 
 		-l | --lock)
