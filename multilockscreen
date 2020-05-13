@@ -603,7 +603,7 @@ remove_profile() {
     echo "Are you sure you want to remove the active profile? Images will be moved to cache"
     select yn in "Yes" "No"; do
       case $yn in
-        Yes ) mv -r "$profile_dir/"* "$CACHE_DIR"; break;;
+        Yes ) mv "$profile_dir/"* "$CACHE_DIR"; break;;
         No ) exit;;
       esac
     done
